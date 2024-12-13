@@ -1,0 +1,13 @@
+LICENSE
+README.md
+pyproject.toml
+setup.py
+dns_smtp_email_validator/__init__.py
+dns_smtp_email_validator/main.py
+dns_smtp_email_validator.egg-info/PKG-INFO
+dns_smtp_email_validator.egg-info/SOURCES.txt
+dns_smtp_email_validator.egg-info/dependency_links.txt
+dns_smtp_email_validator.egg-info/requires.txt
+dns_smtp_email_validator.egg-info/top_level.txt
+tests/__init__.py
+tests/test.py

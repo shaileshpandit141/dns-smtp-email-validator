@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="dns-and-smtp-email-validator",
+    name="dns-smtp-email-validator",
     version="0.1.0",
     author="Shailesh",
     author_email="shaileshpandit141@gmail.com",
@@ -12,7 +12,7 @@ setup(
     """,
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/shaileshpandit141/dns-and-smtp-email-validator.git",
+    url="https://github.com/shaileshpandit141/dns-smtp-email-validator.git",
     packages=find_packages(),
     install_requires=[
         "dnspython>=2.3.0",
