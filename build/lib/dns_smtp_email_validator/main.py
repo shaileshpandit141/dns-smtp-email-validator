@@ -4,13 +4,19 @@ import smtplib
 from dns.resolver import resolve, NXDOMAIN, Timeout
 from decouple import config, Csv
 
-ALLOWED_EMAIL_DOMAINS = config("ALLOWED_EMAIL_DOMAINS", cast=Csv(), default = [
+DEFAULT_ALLOWED_EMAIL_DOMAINS = [
     "gmail.com", "yahoo.com", "outlook.com", "hotmail.com",
     "icloud.com", "aol.com", "zoho.com", "protonmail.com",
     "yandex.com", "gmx.com", "mail.ru", "rediffmail.com",
     "qq.com", "163.com", "126.com", "tutanota.com",
     "yahoo.co.jp", "nifty.com"
-])
+]
+
+ALLOWED_EMAIL_DOMAINS = config(
+    "ALLOWED_EMAIL_DOMAINS",
+    cast=Csv(),
+    default=','.join(DEFAULT_ALLOWED_EMAIL_DOMAINS)
+)
 
 
 class DNSSMTPEmailValidator:

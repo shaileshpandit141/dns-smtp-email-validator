@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: dns-smtp-email-validator
-Version: 0.1.1
+Version: 0.1.2
 Summary: DNS and SMTP Email Validator is a robust Python library designed
 Home-page: https://github.com/shaileshpandit141/dns-smtp-email-validator.git
 Author: Shailesh
