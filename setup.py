@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="dns-smtp-email-validator",
-    version="0.1.0",
+    version="0.1.1",
     author="Shailesh",
     author_email="shaileshpandit141@gmail.com",
     description="""DNS and SMTP Email Validator is a robust Python library designed
