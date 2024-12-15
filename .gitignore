@@ -1,3 +1,5 @@
 .pytest_cache
 .ropeproject
 .env
+*/__pycache__
+*/*/__pycache__
