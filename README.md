@@ -74,10 +74,15 @@ ALLOWED_EMAIL_DOMAINS=gmail.com,yahoo.com,outlook.com
 If `ALLOWED_EMAIL_DOMAINS` is not provided, the library uses the following defaults:
 
 ```
-gmail.com, yahoo.com, outlook.com, hotmail.com, icloud.com,
-aol.com, zoho.com, protonmail.com, yandex.com, gmx.com,
-mail.ru, rediffmail.com, qq.com, 163.com, 126.com, tutanota.com,
-yahoo.co.jp, nifty.com
+ALLOWED_EMAIL_DOMAINS = [
+    "aol.com",
+    "gmail.com",
+    "hotmail.com",
+    "icloud.com",
+    "outlook.com",
+    "yahoo.com",
+    "zoho.com"
+]
 ```
 
 ---
