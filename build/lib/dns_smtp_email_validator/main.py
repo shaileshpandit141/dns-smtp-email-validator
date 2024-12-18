@@ -74,7 +74,7 @@ class DNSSMTPEmailValidator:
         """
         if self.raise_exception:
             raise ValueError(error_message)
-        self.errors.append(f"Error: {error_message}")
+        self.errors.append(error_message)
 
     def __get_mx_record(self: Self) -> Optional[str]:
         """
