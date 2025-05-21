@@ -1,9 +1,11 @@
 import logging
 import re
 import smtplib
-from typing import Self, List, Tuple, Optional, Literal
-from dns.resolver import resolve, NXDOMAIN, Timeout  # type: ignore
-from decouple import config, Csv  # type: ignore
+from typing import List, Literal, Optional, Self, Tuple
+
+from decouple import Csv, config  # type: ignore
+from dns.resolver import NXDOMAIN, Timeout, resolve  # type: ignore
+
 from .main_types import EmailError
 
 # Configure logger
@@ -13,21 +15,25 @@ logger.setLevel(logging.INFO)
 # Optional: configure handler if needed (e.g., StreamHandler for stdout)
 if not logger.handlers:
     handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
 # Default email domains
 DEFAULT_ALLOWED_EMAIL_DOMAINS = [
-    "aol.com", "gmail.com", "hotmail.com", "icloud.com",
-    "outlook.com", "yahoo.com", "zoho.com", "duck.com"
+    "aol.com",
+    "gmail.com",
+    "hotmail.com",
+    "icloud.com",
+    "outlook.com",
+    "yahoo.com",
+    "zoho.com",
+    "duck.com",
 ]
 
 # Configurable allowed domains
 ALLOWED_EMAIL_DOMAINS = config(
-    "ALLOWED_EMAIL_DOMAINS",
-    cast=Csv(),
-    default=",".join(DEFAULT_ALLOWED_EMAIL_DOMAINS)
+    "ALLOWED_EMAIL_DOMAINS", cast=Csv(), default=",".join(DEFAULT_ALLOWED_EMAIL_DOMAINS)
 )
 
 
@@ -35,6 +41,7 @@ default_sender_email = config("DEFAULT_FROM_EMAIL", cast=str)
 
 if default_sender_email is None:
     raise ValueError("DEFAULT_FROM_EMAIL is not set in environment variables")
+
 
 class DNSSMTPEmailValidator:
     """
@@ -45,7 +52,7 @@ class DNSSMTPEmailValidator:
         self: Self,
         email: str,
         sender_email: str = default_sender_email,
-        raise_exception: Literal[True, False] = False
+        raise_exception: Literal[True, False] = False,
     ) -> None:
         """
         Args:
@@ -89,17 +96,13 @@ class DNSSMTPEmailValidator:
     def __get_mx_record(self: Self) -> Optional[str]:
         """Retrieve the MX record for the domain."""
         if not self.__is_valid_email_format():
-            self.__handle_error(
-                ["Invalid email format."],
-                "invalid_format"
-            )
+            self.__handle_error(["Invalid email format."], "invalid_format")
             return None
 
         username, domain = self.__get_username_and_domain()
         if not self.__validate_email_domain(domain):
             self.__handle_error(
-                [f"Unsupported email domain '{domain}'."],
-                "invalid_domain"
+                [f"Unsupported email domain '{domain}'."], "invalid_domain"
             )
             return None
 
@@ -107,26 +110,23 @@ class DNSSMTPEmailValidator:
             mx_records = resolve(domain, "MX", lifetime=5)
             if not mx_records:
                 self.__handle_error(
-                    [f"No MX records found for domain '{domain}'."],
-                    "no_mx_record"
+                    [f"No MX records found for domain '{domain}'."], "no_mx_record"
                 )
                 return None
             return str(mx_records[0].exchange).strip()
         except NXDOMAIN:
             self.__handle_error(
-                [f"Domain '{domain}' does not exist."],
-                "domain_not_found"
+                [f"Domain '{domain}' does not exist."], "domain_not_found"
             )
         except Timeout:
             self.__handle_error(
                 [f"Timeout occurred while querying MX records for '{domain}'."],
-                "timeout"
+                "timeout",
             )
         except Exception as e:
             logger.exception("Unexpected exception during MX lookup.")
             self.__handle_error(
-                [f"Unexpected error during MX lookup: {str(e)}"],
-                "mx_lookup_error"
+                [f"Unexpected error during MX lookup: {str(e)}"], "mx_lookup_error"
             )
         return None
 
@@ -140,21 +140,20 @@ class DNSSMTPEmailValidator:
 
                 if code != 250:
                     self.__handle_error(
-                        [f"The recipient '{self.recipient_email}' was not accepted by the server."],
-                        "verification_failed"
+                        [
+                            f"The recipient '{self.recipient_email}' was not accepted by the server."
+                        ],
+                        "verification_failed",
                     )
                 return code, message.decode()
         except smtplib.SMTPException as e:
             logger.exception("SMTP error during connection.")
-            self.__handle_error(
-                [f"SMTP error occurred: {str(e)}"],
-                "smtp_error"
-            )
+            self.__handle_error([f"SMTP error occurred: {str(e)}"], "smtp_error")
         except Exception as e:
             logger.exception("Unexpected exception during SMTP connection.")
             self.__handle_error(
                 [f"Unexpected error during SMTP connection: {str(e)}"],
-                "verification_error"
+                "verification_error",
             )
         return None
 

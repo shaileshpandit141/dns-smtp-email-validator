@@ -1,6 +1,7 @@
 import unittest
 from dns_smtp_email_validator import DNSSMTPEmailValidator
 
+
 class TestDNSSMTPEmailValidator(unittest.TestCase):
     def test_valid_email(self):
         validator = DNSSMTPEmailValidator("johnsmithtesting@gmail.com")
@@ -41,6 +42,7 @@ class TestDNSSMTPEmailValidator(unittest.TestCase):
     def test_invalid_email_spaces(self):
         validator = DNSSMTPEmailValidator("john doe@example.com")
         self.assertFalse(validator.is_valid())
+
 
 if __name__ == "__main__":
     unittest.main()
