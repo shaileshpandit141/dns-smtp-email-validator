@@ -10,14 +10,6 @@ from .main_types import EmailError
 
 # Configure logger
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Optional: configure handler if needed (e.g., StreamHandler for stdout)
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
 
 # Default email domains
 DEFAULT_ALLOWED_EMAIL_DOMAINS = [
