@@ -1,11 +1,7 @@
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import TypedDict
 
-class ErrorsFieldType(TypedDict):
+
+class EmailError(TypedDict, total=False):
     """Type for API error responses"""
-    field: str
+    email: list[str]
     code: str
-    message: str
-    details: Optional[Dict[str, Any]]
-
-
-ErrorsType = List[ErrorsFieldType]
