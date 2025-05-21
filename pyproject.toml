@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dns-smtp-email-validator"
-version = "0.1.8"
+version = "0.1.9"
 description = """
 DNS and SMTP Email Validator is a robust Python library designed
 to validate email addresses at multiple levels. It checks the format, domain,
@@ -16,10 +16,7 @@ license = { file = "LICENSE" }
 authors = [{ name = "shailesh pandit", email = "shaileshpandit141@gmail.com" }]
 requires-python = ">=3.10"
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python :: 3",
-    "Intended Audience :: Developers",
-    "Topic :: Software Development :: Module",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
