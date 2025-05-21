@@ -1,50 +1,57 @@
-from typing import Self, List, Tuple, Literal, Optional
+import logging
 import re
 import smtplib
+from typing import Self, List, Tuple, Optional, Literal
 from dns.resolver import resolve, NXDOMAIN, Timeout  # type: ignore
 from decouple import config, Csv  # type: ignore
 from .main_types import EmailError
 
-# List of commonly used and allowed email domain names
+# Configure logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Optional: configure handler if needed (e.g., StreamHandler for stdout)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+# Default email domains
 DEFAULT_ALLOWED_EMAIL_DOMAINS = [
-    "aol.com",
-    "gmail.com",
-    "hotmail.com",
-    "icloud.com",
-    "outlook.com",
-    "yahoo.com",
-    "zoho.com"
+    "aol.com", "gmail.com", "hotmail.com", "icloud.com",
+    "outlook.com", "yahoo.com", "zoho.com", "duck.com"
 ]
 
-# Get allowed email domains from config, falling back to defaults
+# Configurable allowed domains
 ALLOWED_EMAIL_DOMAINS = config(
     "ALLOWED_EMAIL_DOMAINS",
     cast=Csv(),
-    default=','.join(DEFAULT_ALLOWED_EMAIL_DOMAINS)
+    default=",".join(DEFAULT_ALLOWED_EMAIL_DOMAINS)
 )
 
 
+default_sender_email = config("DEFAULT_FROM_EMAIL", cast=str)
+
+if default_sender_email is None:
+    raise ValueError("DEFAULT_FROM_EMAIL is not set in environment variables")
+
 class DNSSMTPEmailValidator:
     """
-    A class to validate email addresses using DNS and SMTP checks.
-
-    Validates email format, domain existence via MX records,
-    and recipient acceptance via SMTP.
+    Validates email addresses using format checks, DNS MX records, and SMTP verification.
     """
 
     def __init__(
         self: Self,
         email: str,
-        sender_email: str = "example@domain.com",
+        sender_email: str = default_sender_email,
         raise_exception: Literal[True, False] = False
     ) -> None:
         """
-        Initialize the email validator.
-
         Args:
-            email: The email address to validate
-            sender_email: Email address to use as sender in SMTP checks
-            raise_exception: Whether to raise exceptions on validation errors
+            email: Email address to validate.
+            sender_email: Used as the MAIL FROM address in SMTP check.
+            raise_exception: Whether to raise exceptions instead of storing errors.
         """
         self.sender_email = sender_email
         self.recipient_email = email
@@ -52,58 +59,46 @@ class DNSSMTPEmailValidator:
         self.errors: EmailError = {}
 
     def __is_valid_email_format(self: Self) -> bool:
-        """Check if email matches standard email format pattern."""
+        """Check if email matches the standard format."""
         pattern = r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)"
         return re.match(pattern, self.recipient_email) is not None
 
     def __get_username_and_domain(self: Self) -> List[str]:
-        """Split email into username and domain parts."""
+        """Split email into [username, domain]."""
         return self.recipient_email.split("@")
 
     @staticmethod
     def __validate_email_domain(domain: str) -> bool:
-        """Check if domain is in allowed list."""
+        """Return True if domain is in the allowed list."""
         return domain in ALLOWED_EMAIL_DOMAINS
 
-    def __handle_error(
-        self: Self,
-        error_message: list[str],
-        code: str = "invalid_email",
-    ) -> None:
+    def __handle_error(self: Self, error_message: list[str], code: str) -> None:
         """
-        Handle validation errors by either raising exception or storing error message.
+        Store or raise error depending on configuration.
 
         Args:
-            error_message: The error message to handle
-            code: Error code identifier
-            details: Additional error details
+            error_message: Description of the error.
+            code: Short error identifier.
         """
-        error: EmailError = {
-            "email": error_message,
-            "code": code
-        }
+        logger.error(f"Validation error ({code}): {' '.join(error_message)}")
+        error: EmailError = {"email": error_message, "code": code}
         if self.raise_exception:
-            raise ValueError(error_message)
+            raise ValueError(" ".join(error_message))
         self.errors = error
 
     def __get_mx_record(self: Self) -> Optional[str]:
-        """
-        Get MX record for email domain.
-
-        Returns:
-            Mail server hostname or None if lookup fails
-        """
+        """Retrieve the MX record for the domain."""
         if not self.__is_valid_email_format():
             self.__handle_error(
-                ["Invalid email format. Please check and try again."],
+                ["Invalid email format."],
                 "invalid_format"
             )
             return None
 
         username, domain = self.__get_username_and_domain()
-        if not DNSSMTPEmailValidator.__validate_email_domain(domain):
+        if not self.__validate_email_domain(domain):
             self.__handle_error(
-                [f"The email domain '{domain}' is not supported."],
+                [f"Unsupported email domain '{domain}'."],
                 "invalid_domain"
             )
             return None
@@ -112,91 +107,65 @@ class DNSSMTPEmailValidator:
             mx_records = resolve(domain, "MX", lifetime=5)
             if not mx_records:
                 self.__handle_error(
-                    [f"No mail server found for domain: {domain}"],
+                    [f"No MX records found for domain '{domain}'."],
                     "no_mx_record"
                 )
                 return None
             return str(mx_records[0].exchange).strip()
         except NXDOMAIN:
             self.__handle_error(
-                [f"The domain {domain} does not exist."],
+                [f"Domain '{domain}' does not exist."],
                 "domain_not_found"
             )
-            return None
         except Timeout:
             self.__handle_error(
-                [f"Connection timed out while checking domain: {domain}."],
+                [f"Timeout occurred while querying MX records for '{domain}'."],
                 "timeout"
             )
-            return None
-        except Exception:
+        except Exception as e:
+            logger.exception("Unexpected exception during MX lookup.")
             self.__handle_error(
-                ["An error occurred while verifying the mail server"],
-                "mx_lookup_error",
+                [f"Unexpected error during MX lookup: {str(e)}"],
+                "mx_lookup_error"
             )
-            return None
+        return None
 
     def __connect_to_mail_server(self: Self, mx_host: str) -> Optional[Tuple[int, str]]:
-        """
-        Connect to mail server and verify recipient acceptance.
-
-        Args:
-            mx_host: Hostname of the mail server
-
-        Returns:
-            Tuple of (response code, message) or None on error
-        """
+        """Attempt SMTP connection and validate recipient."""
         try:
             with smtplib.SMTP(mx_host, 25, timeout=10) as server:
                 server.helo()
                 server.mail(self.sender_email)
                 code, message = server.rcpt(self.recipient_email)
+
                 if code != 250:
                     self.__handle_error(
-                        ["The email address could not be verified"],
-                        "verification_failed",
+                        [f"The recipient '{self.recipient_email}' was not accepted by the server."],
+                        "verification_failed"
                     )
                 return code, message.decode()
-        except smtplib.SMTPException as error:
+        except smtplib.SMTPException as e:
+            logger.exception("SMTP error during connection.")
             self.__handle_error(
-                ["Could not connect to email server."],
-                "smtp_error",
+                [f"SMTP error occurred: {str(e)}"],
+                "smtp_error"
             )
-        except Exception as error:
+        except Exception as e:
+            logger.exception("Unexpected exception during SMTP connection.")
             self.__handle_error(
-                ["An unexpected error occurred during verification"],
-                "verification_error",
+                [f"Unexpected error during SMTP connection: {str(e)}"],
+                "verification_error"
             )
         return None
 
     def is_valid(self: Self) -> bool:
-        """
-        Perform complete email validation.
-
-        Returns:
-            True if email is valid, False otherwise
-        """
-        try:
-            mx_host = self.__get_mx_record()
-            if not mx_host:
-                self.__handle_error(
-                    ["Email validation failed - could not verify mail server"],
-                    "mx_verification_failed"
-                )
-                return False
-
-            response = self.__connect_to_mail_server(mx_host)
-            if not response:
-                self.__handle_error(
-                    ["Email validation failed - could not complete server verification"],
-                    "smtp_verification_failed"
-                )
-                return False
-
-            return response[0] == 250
-        except Exception as error:
-            self.__handle_error(
-                ["Email validation process failed"],
-                "validation_error"
-            )
+        """Run the full validation process."""
+        mx_host = self.__get_mx_record()
+        if not mx_host:
             return False
+
+        response = self.__connect_to_mail_server(mx_host)
+        if not response:
+            return False
+
+        return response[0] == 250
