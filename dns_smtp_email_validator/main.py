@@ -1,15 +1,17 @@
 import logging
 import re
 import smtplib
+from os import getenv
 from typing import List, Literal, Optional, Self, Tuple
 
-from decouple import Csv, config  # type: ignore
 from dns.resolver import NXDOMAIN, Timeout, resolve  # type: ignore
-
-from .main_types import EmailError
+from dotenv import load_dotenv
 
 # Configure logger
 logger = logging.getLogger(__name__)
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Default email domains
 DEFAULT_ALLOWED_EMAIL_DOMAINS = [
@@ -24,14 +26,15 @@ DEFAULT_ALLOWED_EMAIL_DOMAINS = [
 ]
 
 # Configurable allowed domains
-ALLOWED_EMAIL_DOMAINS = config(
-    "ALLOWED_EMAIL_DOMAINS", cast=Csv(), default=",".join(DEFAULT_ALLOWED_EMAIL_DOMAINS)
-)
+ALLOWED_EMAIL_DOMAINS = getenv(
+    "ALLOWED_EMAIL_DOMAINS", default=",".join(DEFAULT_ALLOWED_EMAIL_DOMAINS)
+).split(",")
 
 
-default_sender_email = config("DEFAULT_FROM_EMAIL", cast=str)
+# Default sender email
+DEFAULT_SENDER_EMAIL = getenv("DEFAULT_FROM_EMAIL", default=None)
 
-if default_sender_email is None:
+if DEFAULT_SENDER_EMAIL is None:
     raise ValueError("DEFAULT_FROM_EMAIL is not set in environment variables")
 
 
@@ -43,7 +46,7 @@ class DNSSMTPEmailValidator:
     def __init__(
         self: Self,
         email: str,
-        sender_email: str = default_sender_email,
+        sender_email: str = DEFAULT_SENDER_EMAIL,
         raise_exception: Literal[True, False] = False,
     ) -> None:
         """
@@ -55,7 +58,7 @@ class DNSSMTPEmailValidator:
         self.sender_email = sender_email
         self.recipient_email = email
         self.raise_exception = raise_exception
-        self.errors: EmailError = {}
+        self.errors: dict[str, list[str]] = {}
 
     def __is_valid_email_format(self: Self) -> bool:
         """Check if email matches the standard format."""
@@ -71,7 +74,7 @@ class DNSSMTPEmailValidator:
         """Return True if domain is in the allowed list."""
         return domain in ALLOWED_EMAIL_DOMAINS
 
-    def __handle_error(self: Self, error_message: list[str], code: str) -> None:
+    def __handle_error(self: Self, error_message: list[str]) -> None:
         """
         Store or raise error depending on configuration.
 
@@ -79,8 +82,8 @@ class DNSSMTPEmailValidator:
             error_message: Description of the error.
             code: Short error identifier.
         """
-        logger.error(f"Validation error ({code}): {' '.join(error_message)}")
-        error: EmailError = {"email": error_message, "code": code}
+        logger.error(f"Validation error : {' '.join(error_message)}")
+        error = {"email": error_message}
         if self.raise_exception:
             raise ValueError(" ".join(error_message))
         self.errors = error
@@ -88,38 +91,29 @@ class DNSSMTPEmailValidator:
     def __get_mx_record(self: Self) -> Optional[str]:
         """Retrieve the MX record for the domain."""
         if not self.__is_valid_email_format():
-            self.__handle_error(["Invalid email format."], "invalid_format")
+            self.__handle_error(["Invalid email format."])
             return None
 
         username, domain = self.__get_username_and_domain()
         if not self.__validate_email_domain(domain):
-            self.__handle_error(
-                [f"Unsupported email domain '{domain}'."], "invalid_domain"
-            )
+            self.__handle_error([f"Unsupported email domain '{domain}'."])
             return None
 
         try:
             mx_records = resolve(domain, "MX", lifetime=5)
             if not mx_records:
-                self.__handle_error(
-                    [f"No MX records found for domain '{domain}'."], "no_mx_record"
-                )
+                self.__handle_error([f"No MX records found for domain '{domain}'."])
                 return None
-            return str(mx_records[0].exchange).strip()
+            return str(mx_records[0].exchange).strip()  # type: ignore
         except NXDOMAIN:
-            self.__handle_error(
-                [f"Domain '{domain}' does not exist."], "domain_not_found"
-            )
+            self.__handle_error([f"Domain '{domain}' does not exist."])
         except Timeout:
             self.__handle_error(
                 [f"Timeout occurred while querying MX records for '{domain}'."],
-                "timeout",
             )
         except Exception as e:
             logger.exception("Unexpected exception during MX lookup.")
-            self.__handle_error(
-                [f"Unexpected error during MX lookup: {str(e)}"], "mx_lookup_error"
-            )
+            self.__handle_error([f"Unexpected error during MX lookup: {str(e)}"])
         return None
 
     def __connect_to_mail_server(self: Self, mx_host: str) -> Optional[Tuple[int, str]]:
@@ -135,17 +129,15 @@ class DNSSMTPEmailValidator:
                         [
                             f"The recipient '{self.recipient_email}' was not accepted by the server."
                         ],
-                        "verification_failed",
                     )
                 return code, message.decode()
         except smtplib.SMTPException as e:
             logger.exception("SMTP error during connection.")
-            self.__handle_error([f"SMTP error occurred: {str(e)}"], "smtp_error")
+            self.__handle_error([f"SMTP error occurred: {str(e)}"])
         except Exception as e:
             logger.exception("Unexpected exception during SMTP connection.")
             self.__handle_error(
                 [f"Unexpected error during SMTP connection: {str(e)}"],
-                "verification_error",
             )
         return None
 
